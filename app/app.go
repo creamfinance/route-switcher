@@ -36,11 +36,11 @@ type InterfaceStatistic struct {
 func NewRouteSwitcher (config *options.RouteSwitcherConfig) (*RouteSwitcher, error) {
 
 	if config.ExternalInterfaces == "" {
-		return nil, errors.New("Require at least two external interfaces")
+		return nil, errors.New("Require at least two external interfaces, --external-interfaces need to be defined")
 	}
 
 	if config.PingTargets == "" {
-		return nil, errors.New("Require at least one ping target")
+		return nil, errors.New("Require at least one ping target, --ping-targets need to be filled")
 	}
 
 	rs := &RouteSwitcher{}
@@ -175,9 +175,14 @@ func (rs *RouteSwitcher) SwitchInterfaces(stopCh <-chan struct{}, wg *sync.WaitG
 
         for _, stat := range goodInterfaces {
         	multipath = append(multipath, &netlink.NexthopInfo{
+        		LinkIndex: stat.link.Attrs().Index,
         		Gw: *stat.gateway,
         		Hops: 0,
         	})
+
+        	if rs.config.RoutePreference == "single" {
+        		break
+        	}
         }
 
         route := netlink.Route{
@@ -191,14 +196,14 @@ func (rs *RouteSwitcher) SwitchInterfaces(stopCh <-chan struct{}, wg *sync.WaitG
         	err := netlink.RouteDel(rs.lastRoute);
 
         	if err != nil {
-        		glog.Infof("%v", err)
+        		glog.Errorf("[Route Delete] %v", err)
         	}
         }
 
         err := netlink.RouteAdd(&route);
 
 		if err != nil {
-    		glog.Infof("%v", err)
+    		glog.Errorf("[Route Add] %v", err)
     	}
 
         rs.lastRoute = &route
